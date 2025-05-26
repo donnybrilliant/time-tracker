@@ -72,7 +72,6 @@ int task_stop(sqlite3 *db, int task_id) {
     return 0;
   }
   int is_running = sqlite3_column_int(stmt, 0);
-  int project_id = sqlite3_column_int(stmt, 1);
   sqlite3_finalize(stmt);
 
   if (!is_running) {
