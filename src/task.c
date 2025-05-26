@@ -1,8 +1,8 @@
 #include "task.h"
+#include "project.h"
 #include <stdio.h>
 #include <time.h>
 
-// Add a new task (not running yet)
 int task_add(sqlite3 *db, int project_id, const char *name) {
   const char *sql = "INSERT INTO tasks (project_id, name, start_time, "
                     "end_time, is_running) VALUES (?, ?, 0, 0, 0);";
@@ -26,7 +26,6 @@ int task_add(sqlite3 *db, int project_id, const char *name) {
   return 1;
 }
 
-// Start a new running task
 int task_start(sqlite3 *db, int project_id, const char *name) {
   time_t now = time(NULL);
   const char *sql = "INSERT INTO tasks (project_id, name, start_time, "
@@ -52,7 +51,6 @@ int task_start(sqlite3 *db, int project_id, const char *name) {
   return 1;
 }
 
-// Stop a running task (by id)
 int task_stop(sqlite3 *db, int project_id, int task_id) {
   time_t now = time(NULL);
   // Check if task is running and belongs to project
@@ -107,7 +105,6 @@ int task_stop(sqlite3 *db, int project_id, int task_id) {
   return 1;
 }
 
-// List all tasks for a project
 void task_list(sqlite3 *db, int project_id) {
   const char *sql = "SELECT id, name, start_time, end_time, is_running FROM "
                     "tasks WHERE project_id=? ORDER BY id;";
@@ -146,7 +143,6 @@ void task_list(sqlite3 *db, int project_id) {
   sqlite3_finalize(stmt);
 }
 
-// Report total tracked time per project
 void task_report(sqlite3 *db, int project_id) {
   const char *sql =
       "SELECT name, start_time, end_time FROM tasks WHERE project_id=?;";
@@ -177,10 +173,16 @@ void task_report(sqlite3 *db, int project_id) {
   }
   sqlite3_finalize(stmt);
 
-  printf("%-30s %-12d\n", "TOTAL", total_minutes);
+  double wage = project_get_wage(db, project_id);
+  double total_hours = total_minutes / 60.0;
+  double total_cost = total_hours * wage;
+
+  printf("%-30s %-12d\n", "TOTAL (min)", total_minutes);
+  printf("Total Time: %.2f hours\n", total_hours);
+  printf("Wage: $%.2f/hour\n", wage);
+  printf("Total Cost: $%.2f\n", total_cost);
 }
 
-// Delete a task
 int task_delete(sqlite3 *db, int task_id) {
   const char *sql = "DELETE FROM tasks WHERE id=?;";
   sqlite3_stmt *stmt;
@@ -200,7 +202,6 @@ int task_delete(sqlite3 *db, int task_id) {
   return 1;
 }
 
-// Edit a task
 int task_edit(sqlite3 *db, int task_id, const char *new_name) {
   const char *sql = "UPDATE tasks SET name=? WHERE id=?;";
   sqlite3_stmt *stmt;
@@ -221,7 +222,6 @@ int task_edit(sqlite3 *db, int task_id, const char *new_name) {
   return 1;
 }
 
-// Export tasks to CSV
 void task_export_csv(sqlite3 *db, int project_id, const char *filename) {
   const char *sql = "SELECT id, name, start_time, end_time, is_running FROM "
                     "tasks WHERE project_id=?;";
@@ -253,4 +253,35 @@ void task_export_csv(sqlite3 *db, int project_id, const char *filename) {
   sqlite3_finalize(stmt);
   fclose(fp);
   printf("Exported tasks to '%s'.\n", filename);
+}
+
+void task_list_running(sqlite3 *db) {
+  const char *sql =
+      "SELECT tasks.id, tasks.name, tasks.start_time, projects.name "
+      "FROM tasks JOIN projects ON tasks.project_id=projects.id "
+      "WHERE tasks.is_running=1;";
+  sqlite3_stmt *stmt;
+  int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
+    return;
+  }
+  printf("Running tasks:\n%-5s %-20s %-20s %-20s %-10s\n", "ID", "Task",
+         "Project", "Started", "Elapsed(min)");
+  time_t now = time(NULL);
+  while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+    int id = sqlite3_column_int(stmt, 0);
+    const unsigned char *task_name = sqlite3_column_text(stmt, 1);
+    sqlite3_int64 start_time = sqlite3_column_int64(stmt, 2);
+    const unsigned char *project_name = sqlite3_column_text(stmt, 3);
+    char start_buf[20] = "N/A";
+    if (start_time) {
+      struct tm *tm_info = localtime((time_t *)&start_time);
+      strftime(start_buf, sizeof(start_buf), "%Y-%m-%d %H:%M", tm_info);
+    }
+    int elapsed = (start_time) ? (now - start_time) / 60 : 0;
+    printf("%-5d %-20s %-20s %-20s %-10d\n", id, task_name, project_name,
+           start_buf, elapsed);
+  }
+  sqlite3_finalize(stmt);
 }
