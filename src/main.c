@@ -18,11 +18,16 @@ int main(int argc, char *argv[]) {
     printf("Usage:\n"
            "  tracker add-project \"Project Name\"\n"
            "  tracker list-projects\n"
+           "  tracker edit-project <project_id> \"New Name\"\n"
+           "  tracker delete-project <project_id>\n"
            "  tracker add-task <project_id> \"Task Name\"\n"
            "  tracker start-task <project_id> \"Task Name\"\n"
            "  tracker stop-task <project_id> <task_id>\n"
+           "  tracker edit-task <task_id> \"New Name\"\n"
+           "  tracker delete-task <task_id>\n"
            "  tracker list-tasks <project_id>\n"
-           "  tracker report <project_id>\n");
+           "  tracker report <project_id>\n"
+           "  tracker export-csv <project_id> <filename>\n");
     db_close(db);
     return 0;
   }
@@ -31,6 +36,12 @@ int main(int argc, char *argv[]) {
     project_add(db, argv[2]);
   } else if (strcmp(argv[1], "list-projects") == 0) {
     project_list(db);
+  } else if (strcmp(argv[1], "edit-project") == 0 && argc >= 4) {
+    int project_id = atoi(argv[2]);
+    project_edit(db, project_id, argv[3]);
+  } else if (strcmp(argv[1], "delete-project") == 0 && argc >= 3) {
+    int project_id = atoi(argv[2]);
+    project_delete(db, project_id);
   } else if (strcmp(argv[1], "add-task") == 0 && argc >= 4) {
     int project_id = atoi(argv[2]);
     task_add(db, project_id, argv[3]);
@@ -41,12 +52,21 @@ int main(int argc, char *argv[]) {
     int project_id = atoi(argv[2]);
     int task_id = atoi(argv[3]);
     task_stop(db, project_id, task_id);
+  } else if (strcmp(argv[1], "edit-task") == 0 && argc >= 4) {
+    int task_id = atoi(argv[2]);
+    task_edit(db, task_id, argv[3]);
+  } else if (strcmp(argv[1], "delete-task") == 0 && argc >= 3) {
+    int task_id = atoi(argv[2]);
+    task_delete(db, task_id);
   } else if (strcmp(argv[1], "list-tasks") == 0 && argc >= 3) {
     int project_id = atoi(argv[2]);
     task_list(db, project_id);
   } else if (strcmp(argv[1], "report") == 0 && argc >= 3) {
     int project_id = atoi(argv[2]);
     task_report(db, project_id);
+  } else if (strcmp(argv[1], "export-csv") == 0 && argc >= 4) {
+    int project_id = atoi(argv[2]);
+    task_export_csv(db, project_id, argv[3]);
   } else {
     printf("Unknown command. Try 'tracker' for usage.\n");
   }
