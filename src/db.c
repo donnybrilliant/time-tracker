@@ -1,5 +1,3 @@
-// src/db.c
-
 #include "db.h"
 #include <stdio.h>
 
