@@ -21,4 +21,7 @@ int project_edit_wage(sqlite3 *db, int project_id, double wage);
 // Get the wage for a project.
 double project_get_wage(sqlite3 *db, int project_id);
 
+// Look up a project ID by name.
+int project_id_from_name(sqlite3 *db, const char *name);
+
 #endif

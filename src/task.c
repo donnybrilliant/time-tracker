@@ -51,11 +51,11 @@ int task_start(sqlite3 *db, int project_id, const char *name) {
   return 1;
 }
 
-int task_stop(sqlite3 *db, int project_id, int task_id) {
+int task_stop(sqlite3 *db, int task_id) {
   time_t now = time(NULL);
-  // Check if task is running and belongs to project
+  // Check if task is running
   const char *check_sql =
-      "SELECT is_running FROM tasks WHERE id=? AND project_id=?;";
+      "SELECT is_running, project_id FROM tasks WHERE id=?;";
   sqlite3_stmt *stmt;
   int rc = sqlite3_prepare_v2(db, check_sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
@@ -64,16 +64,15 @@ int task_stop(sqlite3 *db, int project_id, int task_id) {
     return 0;
   }
   sqlite3_bind_int(stmt, 1, task_id);
-  sqlite3_bind_int(stmt, 2, project_id);
 
   rc = sqlite3_step(stmt);
   if (rc != SQLITE_ROW) {
-    printf("No such running task (ID %d in project %d).\n", task_id,
-           project_id);
+    printf("No such running task (ID %d).\n", task_id);
     sqlite3_finalize(stmt);
     return 0;
   }
   int is_running = sqlite3_column_int(stmt, 0);
+  int project_id = sqlite3_column_int(stmt, 1);
   sqlite3_finalize(stmt);
 
   if (!is_running) {
@@ -82,8 +81,7 @@ int task_stop(sqlite3 *db, int project_id, int task_id) {
   }
 
   // Stop the task
-  const char *sql =
-      "UPDATE tasks SET end_time=?, is_running=0 WHERE id=? AND project_id=?;";
+  const char *sql = "UPDATE tasks SET end_time=?, is_running=0 WHERE id=?;";
   rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if (rc != SQLITE_OK) {
     fprintf(stderr, "Failed to prepare update statement: %s\n",
@@ -92,7 +90,6 @@ int task_stop(sqlite3 *db, int project_id, int task_id) {
   }
   sqlite3_bind_int64(stmt, 1, (sqlite3_int64)now);
   sqlite3_bind_int(stmt, 2, task_id);
-  sqlite3_bind_int(stmt, 3, project_id);
 
   rc = sqlite3_step(stmt);
   sqlite3_finalize(stmt);
@@ -284,4 +281,18 @@ void task_list_running(sqlite3 *db) {
            start_buf, elapsed);
   }
   sqlite3_finalize(stmt);
+}
+
+int task_id_from_name(sqlite3 *db, const char *name) {
+  const char *sql = "SELECT id FROM tasks WHERE name=?;";
+  sqlite3_stmt *stmt;
+  int id = 0;
+  if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+    sqlite3_bind_text(stmt, 1, name, -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+      id = sqlite3_column_int(stmt, 0);
+    }
+    sqlite3_finalize(stmt);
+  }
+  return id;
 }

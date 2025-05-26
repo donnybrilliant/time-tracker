@@ -1,11 +1,24 @@
 #include "db.h"
 #include "project.h"
 #include "task.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 char *get_database_path(void);
+
+// Helper: check if string is a number
+int is_number(const char *s) {
+  if (!s || !*s)
+    return 0;
+  while (*s) {
+    if (!isdigit((unsigned char)*s))
+      return 0;
+    s++;
+  }
+  return 1;
+}
 
 int main(int argc, char *argv[]) {
   char *db_path = get_database_path();
@@ -23,64 +36,122 @@ int main(int argc, char *argv[]) {
 
   if (argc < 2) {
     printf("Usage:\n"
-           "  tracker add-project \"Project Name\" <wage>\n"
-           "  tracker list-projects\n"
-           "  tracker edit-project <project_id> \"New Name\"\n"
-           "  tracker set-wage <project_id> <wage>\n"
-           "  tracker delete-project <project_id>\n"
-           "  tracker add-task <project_id> \"Task Name\"\n"
-           "  tracker start-task <project_id> \"Task Name\"\n"
-           "  tracker stop-task <project_id> <task_id>\n"
-           "  tracker edit-task <task_id> \"New Name\"\n"
-           "  tracker delete-task <task_id>\n"
-           "  tracker list-tasks <project_id>\n"
+           "  tracker project add \"Project Name\" <wage>\n"
+           "  tracker project list\n"
+           "  tracker project edit <project_id> \"New Name\"\n"
+           "  tracker project wage <project_id> <wage>\n"
+           "  tracker project delete <project_id>\n"
+           "  tracker task add <project_id> \"Task Name\"\n"
+           "  tracker task start <project_id> \"Task Name\"\n"
+           "  tracker task stop <task_id>\n"
+           "  tracker task edit <task_id> \"New Name\"\n"
+           "  tracker task delete <task_id>\n"
+           "  tracker task list <project_id>\n"
            "  tracker report <project_id>\n"
-           "  tracker running-tasks\n"
-           "  tracker export-csv <project_id> <filename>\n");
+           "  tracker running\n"
+           "  tracker export <project_id> <filename>\n");
     db_close(db);
     return 0;
   }
 
-  if (strcmp(argv[1], "add-project") == 0 && argc >= 4) {
-    double wage = atof(argv[3]);
-    project_add(db, argv[2], wage);
-  } else if (strcmp(argv[1], "list-projects") == 0) {
-    project_list(db);
-  } else if (strcmp(argv[1], "edit-project") == 0 && argc >= 4) {
-    int project_id = atoi(argv[2]);
-    project_edit(db, project_id, argv[3]);
-  } else if (strcmp(argv[1], "set-wage") == 0 && argc >= 4) {
-    int project_id = atoi(argv[2]);
-    double wage = atof(argv[3]);
-    project_edit_wage(db, project_id, wage);
-  } else if (strcmp(argv[1], "delete-project") == 0 && argc >= 3) {
-    int project_id = atoi(argv[2]);
-    project_delete(db, project_id);
-  } else if (strcmp(argv[1], "add-task") == 0 && argc >= 4) {
-    int project_id = atoi(argv[2]);
-    task_add(db, project_id, argv[3]);
-  } else if (strcmp(argv[1], "start-task") == 0 && argc >= 4) {
-    int project_id = atoi(argv[2]);
-    task_start(db, project_id, argv[3]);
-  } else if (strcmp(argv[1], "stop-task") == 0 && argc >= 4) {
-    int project_id = atoi(argv[2]);
-    int task_id = atoi(argv[3]);
-    task_stop(db, project_id, task_id);
-  } else if (strcmp(argv[1], "edit-task") == 0 && argc >= 4) {
-    int task_id = atoi(argv[2]);
-    task_edit(db, task_id, argv[3]);
-  } else if (strcmp(argv[1], "delete-task") == 0 && argc >= 3) {
-    int task_id = atoi(argv[2]);
-    task_delete(db, task_id);
-  } else if (strcmp(argv[1], "list-tasks") == 0 && argc >= 3) {
-    int project_id = atoi(argv[2]);
-    task_list(db, project_id);
+  // Subcommand-based parsing
+  if (strcmp(argv[1], "project") == 0) {
+    if (argc >= 4 && strcmp(argv[2], "add") == 0) {
+      double wage = atof(argv[4]);
+      if (!*argv[3]) {
+        printf("Error: Project name is required.\n");
+      } else {
+        project_add(db, argv[3], wage);
+      }
+    } else if (argc >= 3 && strcmp(argv[2], "list") == 0) {
+      project_list(db);
+    } else if (argc >= 5 && strcmp(argv[2], "edit") == 0) {
+      int project_id = is_number(argv[3]) ? atoi(argv[3])
+                                          : project_id_from_name(db, argv[3]);
+      if (!project_id) {
+        printf("Error: Project '%s' not found.\n", argv[3]);
+      } else {
+        project_edit(db, project_id, argv[4]);
+      }
+    } else if (argc >= 5 && strcmp(argv[2], "wage") == 0) {
+      int project_id = is_number(argv[3]) ? atoi(argv[3])
+                                          : project_id_from_name(db, argv[3]);
+      if (!project_id) {
+        printf("Error: Project '%s' not found.\n", argv[3]);
+      } else {
+        double wage = atof(argv[4]);
+        project_edit_wage(db, project_id, wage);
+      }
+    } else if (argc >= 4 && strcmp(argv[2], "delete") == 0) {
+      int project_id = is_number(argv[3]) ? atoi(argv[3])
+                                          : project_id_from_name(db, argv[3]);
+      if (!project_id) {
+        printf("Error: Project '%s' not found.\n", argv[3]);
+      } else {
+        project_delete(db, project_id);
+      }
+    } else {
+      printf(
+          "Unknown or incomplete project command. Try 'tracker' for usage.\n");
+    }
+  } else if (strcmp(argv[1], "task") == 0) {
+    if (argc >= 5 && strcmp(argv[2], "add") == 0) {
+      int project_id = is_number(argv[3]) ? atoi(argv[3])
+                                          : project_id_from_name(db, argv[3]);
+      if (!project_id) {
+        printf("Error: Project '%s' not found.\n", argv[3]);
+      } else {
+        task_add(db, project_id, argv[4]);
+      }
+    } else if (argc >= 5 && strcmp(argv[2], "start") == 0) {
+      int project_id = is_number(argv[3]) ? atoi(argv[3])
+                                          : project_id_from_name(db, argv[3]);
+      if (!project_id) {
+        printf("Error: Project '%s' not found.\n", argv[3]);
+      } else {
+        task_start(db, project_id, argv[4]);
+      }
+    } else if (argc >= 4 && strcmp(argv[2], "stop") == 0) {
+      int task_id =
+          is_number(argv[3]) ? atoi(argv[3]) : task_id_from_name(db, argv[3]);
+      if (!task_id) {
+        printf("Error: Task '%s' not found.\n", argv[3]);
+      } else {
+        task_stop(db, task_id);
+      }
+    } else if (argc >= 5 && strcmp(argv[2], "edit") == 0) {
+      int task_id =
+          is_number(argv[3]) ? atoi(argv[3]) : task_id_from_name(db, argv[3]);
+      if (!task_id) {
+        printf("Error: Task '%s' not found.\n", argv[3]);
+      } else {
+        task_edit(db, task_id, argv[4]);
+      }
+    } else if (argc >= 4 && strcmp(argv[2], "delete") == 0) {
+      int task_id =
+          is_number(argv[3]) ? atoi(argv[3]) : task_id_from_name(db, argv[3]);
+      if (!task_id) {
+        printf("Error: Task '%s' not found.\n", argv[3]);
+      } else {
+        task_delete(db, task_id);
+      }
+    } else if (argc >= 4 && strcmp(argv[2], "list") == 0) {
+      int project_id = is_number(argv[3]) ? atoi(argv[3])
+                                          : project_id_from_name(db, argv[3]);
+      if (!project_id) {
+        printf("Error: Project '%s' not found.\n", argv[3]);
+      } else {
+        task_list(db, project_id);
+      }
+    } else {
+      printf("Unknown or incomplete task command. Try 'tracker' for usage.\n");
+    }
   } else if (strcmp(argv[1], "report") == 0 && argc >= 3) {
     int project_id = atoi(argv[2]);
     task_report(db, project_id);
-  } else if (strcmp(argv[1], "running-tasks") == 0) {
+  } else if (strcmp(argv[1], "running") == 0) {
     task_list_running(db);
-  } else if (strcmp(argv[1], "export-csv") == 0 && argc >= 4) {
+  } else if (strcmp(argv[1], "export") == 0 && argc >= 4) {
     int project_id = atoi(argv[2]);
     task_export_csv(db, project_id, argv[3]);
   } else {
